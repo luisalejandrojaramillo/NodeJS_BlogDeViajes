@@ -34,6 +34,10 @@ Recuerda que los autores se deben registrar y luego iniciar sesión para manejar
 * Vamos a seguridad y damos acceso a las Aplicaciones poco seguras
 ![Google Security](/img/googleacc.PNG)
 
+## [Configuracion inicial de la BD](DB_InitialConfig.txt)
+
+## [Resumen Unidad NodeJS](resumenNodeJS.pdf)
+
 ## License
 [MIT License](/LICENSE)
 
