@@ -1,4 +1,4 @@
-# NxU_FirstWebAppWithNodeJS
+# Blog de viajes NodeJS :milky_way:
 
 ## Instrucciones de instalacion
 ```
