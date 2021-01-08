@@ -4,6 +4,7 @@ const mysql = require('mysql')
 var path = require('path')
 const nodemailer = require('nodemailer')
 
+
 //Objeto que envia el correo
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -252,6 +253,252 @@ router.get('/publicacion/:id/votar',(req,res)=>{
       }else{
         req.flash('mensaje','Publicacion invalida')
         res.redirect('/')
+      }
+    })
+    connection.release()
+  })
+})
+
+/**
+ * API REST
+ * A continuacion vamos a hacer los API Rest
+*/
+
+//	JSON con todas las publicaciones.
+// JSON con todas las publicaciones que tengan la palabra <palabra> en el título, contenido o resumen. Ej:/api/v1/publicaciones?busqueda=paris
+router.get('/api/v1/publicaciones',(req,res)=>{
+  pool.getConnection(function(err,connection){
+    let modificadorConsulta = ""
+    const busqueda = ( req.query.busqueda ) ? req.query.busqueda : ""
+    if (busqueda != ""){
+      modificadorConsulta = `
+        WHERE
+        titulo LIKE '%${busqueda}%' OR
+        resumen LIKE '%${busqueda}%' OR
+        contenido LIKE '%${busqueda}%'
+      `
+      modificadorPagina = ""
+    }
+    consulta = `
+      SELECT *
+      FROM publicaciones
+      ${modificadorConsulta}
+    `
+    // const query = `SELECT * FROM publicaciones`
+    connection.query(consulta,function(error,filas,campos){
+        res.json({publicaciones: filas})
+    })
+    connection.release()
+  })
+})
+
+// JSON con todas las publicaciones que tengan la palabra <palabra> en el título, contenido o resumen.
+router.get('/api/v1/publicaciones/:busqueda',(req,res)=>{
+  pool.getConnection(function(err,connection){
+      const query = `SELECT * FROM publicaciones WHERE busqueda=${connection.escape(req.params.id)}`
+      const consulta = `
+        SELECT *
+        publicaciones
+        FROM publicaciones
+        WHERE
+        titulo LIKE '%${busqueda}%' OR
+        resumen LIKE '%${busqueda}%' OR
+        contenido LIKE '%${busqueda}%'
+        `
+      connection.query(query,function(error,filas,campos){
+          if(filas.length>0){
+              res.json({publicaciones: filas[0]})
+          }else{
+              res.status(404)
+              res.send({error:["No se encuentran publicaciones con esa parabla"]})
+          }           
+      })
+      connection.release()
+  })  
+})
+
+// Publicación con id = <id>. Considera cuando el id no existe.
+router.get('/api/v1/publicaciones/:id',(req,res)=>{
+  pool.getConnection(function(err,connection){
+      const query = `SELECT * FROM publicaciones WHERE id=${connection.escape(req.params.id)}`
+      connection.query(query,function(error,filas,campos){
+          if(filas.length>0){
+              res.json({publicaciones: filas[0]})
+          }else{
+              res.status(404)
+              res.send({error:["No se encuentra esa Publicacion"]})
+          }           
+      })
+      connection.release()
+  })  
+})
+
+// JSON con todos los autores.
+router.get('/api/v1/autores',(req,res)=>{
+  pool.getConnection(function(err,connection){
+    const query = `SELECT * FROM autores`
+    connection.query(query,function(error,filas,campos){
+        res.json({autores: filas})
+    })
+    connection.release()
+  })
+})
+
+// JSON con la información del autor con id = <id> y este contiene sus publicaciones. Considera cuando el id no existe.
+router.get('/api/v1/autores/:id',(req,res)=>{
+  pool.getConnection(function(err,connection){
+      const query = `SELECT * FROM autores WHERE id=${connection.escape(req.params.id)}`
+      connection.query(query,function(error,filas,campos){
+          if(filas.length>0){
+              res.json({publicaciones: filas[0]})
+          }else{
+              res.status(404)
+              res.send({error:["No se encuentra este autor"]})
+          }           
+      })
+      connection.release()
+  })  
+})
+
+// Crea un autor dado un pseudónimo, email, contraseña. Validar peticiones con pseudónimos duplicados o email duplicados. Devuelve un JSON con el objeto creado.
+router.post('/api/v1/autores', (peticion, respuesta) => {
+  pool.getConnection((err, connection) => {
+    const email = peticion.query.email.toLowerCase().trim()
+    const pseudonimo = peticion.query.pseudonimo.trim()
+    const contrasena = peticion.query.contrasena
+    const consultaEmail = `
+      SELECT *
+      FROM autores
+      WHERE email = ${connection.escape(email)}
+    `
+    connection.query(consultaEmail, (error, filas, campos) => {
+      if (filas.length > 0) {
+        respuesta.status(404)
+        respuesta.send({error:["Email duplicado"]})
+      }
+      else {
+        const consultaPseudonimo = `
+          SELECT *
+          FROM autores
+          WHERE pseudonimo = ${connection.escape(pseudonimo)}
+        `
+        connection.query(consultaPseudonimo, (error, filas, campos) => {
+          if (filas.length > 0) {
+            respuesta.status(404)
+            respuesta.send({error:["Pseudonimo duplicado"]})
+          }
+          else {
+            const consulta = `
+                                INSERT INTO
+                                autores
+                                (email, contrasena, pseudonimo)
+                                VALUES (
+                                  ${connection.escape(email)},
+                                  ${connection.escape(contrasena)},
+                                  ${connection.escape(pseudonimo)}
+                                )
+                              `
+            connection.query(consulta, (error, filas, campos) => {
+              respuesta.status(201)
+              respuesta.json({autor:filas[0]})             
+            })
+          }
+        })
+      }
+    })
+    connection.release()
+  })
+})
+
+
+// Crea una publicación para el usuario con <email> = email,si este se puede validar correctamente con la contraseña. Se le envía un título, resumen y contenido. Devuelve un JSON con el objeto creado.
+// http://localhost:8080/api/v1/publicaciones?email=zeus@mail.com&contrasena=123456&titulo=Atenas&resumen=Buen viaje a Atenas&contenido=Contenido
+router.post('/api/v1/publicaciones', (peticion, respuesta) => {
+  pool.getConnection((err, connection) => {
+    const thisEmail = peticion.query.email
+    const thisPassword = peticion.query.contrasena
+    const date = new Date()
+    const fecha = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
+    const consulta = `
+      SELECT *
+      FROM autores
+      WHERE
+      email = ${connection.escape(thisEmail)} AND contrasena = ${connection.escape(thisPassword)}
+    `
+    connection.query(consulta, (error, filas, campos) => {
+      if (filas.length != 1) {
+        respuesta.status(404)
+        respuesta.send({error:["Usuario Invalido"]})
+      }
+      else{
+        const thisId = filas[0].id
+        const consultaInsert = `
+          INSERT INTO
+          publicaciones
+          (titulo, resumen, contenido, autor_id, fecha_hora)
+          VALUES
+          (
+            ${connection.escape(peticion.query.titulo)},
+            ${connection.escape(peticion.query.resumen)},
+            ${connection.escape(peticion.query.contenido)},
+            ${connection.escape(thisId)},
+            ${connection.escape(fecha)}
+          )
+        `
+        connection.query(consultaInsert,(error,filas,campos)=>{
+          const newid = filas.insertId
+          const queryConsulta = `SELECT * FROM publicaciones WHERE id=${connection.escape(newid)}`
+          connection.query(queryConsulta,function(error,filas,campos){
+            respuesta.status(201)
+            respuesta.json({data:filas[0]})
+          })
+        })
+      }
+    })
+    connection.release()
+  })
+})
+
+// Elimina la publicación si las credenciales son correctas y la publicación le pertenece al usuario.
+// http://localhost:8080/api/v1/publicaciones/6?email=ana@email.com&contrasena=123456
+router.delete('/api/v1/publicaciones/:id', (peticion, respuesta) => {
+  pool.getConnection((err, connection) => {
+    const thisEmail = peticion.query.email
+    const thisPassword = peticion.query.contrasena
+    const idPubli = peticion.params.id
+    const consulta = `
+      SELECT *
+      FROM autores
+      WHERE
+      email = ${connection.escape(thisEmail)} AND contrasena = ${connection.escape(thisPassword)}
+    `
+    connection.query(consulta, (error, filas, campos) => {
+      const idUser = filas[0].id
+      if (filas.length != 1) {
+        respuesta.status(404)
+        respuesta.send({error:["Usuario Invalido"]})
+      }
+      else{
+        const queryPubli = `SELECT * FROM publicaciones WHERE id=${connection.escape(idPubli)}`
+        connection.query(queryPubli, (error, filas, campos) => {
+          if(filas.length > 0){
+            if(filas[0].autor_id==idUser){
+              const queryDelete = `
+                DELETE FROM publicaciones WHERE id = ${connection.escape(idPubli)};
+              `
+              connection.query(queryDelete,(error,filas,campos)=>{
+                respuesta.status(204) 
+                respuesta.json()
+              })
+            }else{
+              respuesta.status(404)
+              respuesta.send({error:["Usuario Invalido, no es el que realizo la publicacion"]})
+            }
+          }else{
+            respuesta.status(404)
+            respuesta.send({error:["No existe publicacion con ese id"]})
+          }
+        })
       }
     })
     connection.release()

@@ -10,7 +10,7 @@ const rutasPublicas = require('./routes/publicas')
 const rutasPrivadas = require('./routes/privadas')
 
 aplicacion.use(bodyParser.json())
-aplicacion.use(bodyParser.urlencoded({ extended: true }))
+aplicacion.use(bodyParser.urlencoded({ extended: false }))
 aplicacion.set("view engine", "ejs")
 aplicacion.use(session({ secret: 'token-muy-secreto', resave: true, saveUninitialized: true }));
 aplicacion.use(flash())
