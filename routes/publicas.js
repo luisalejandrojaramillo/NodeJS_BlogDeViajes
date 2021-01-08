@@ -505,5 +505,4 @@ router.delete('/api/v1/publicaciones/:id', (peticion, respuesta) => {
   })
 })
 
-
 module.exports = router
